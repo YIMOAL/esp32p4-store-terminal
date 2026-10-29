@@ -1,4 +1,4 @@
-# 服装库存管理系统 — ESP32-P4 前端 & Python 后端维护规范
+# 服装库存管理系统 — 接口协议与实现说明
 
 ## 项目架构概览
 
@@ -87,16 +87,14 @@
 | `get_by_category` | P4→Py | `category`, `page`, `page_size` | `items[]`, `page`, `total_pages` | `check_items_resp_cb` | `db.get_clothing_by_category_paged` |
 | `search` | P4→Py | `keyword`, `page`, `page_size` | `items[]`, `page`, `total_pages` | `check_items_resp_cb` | `db.search_clothing_paged` |
 
-### 1.3 变更强制同步策略
+### 1.3 接口约定
 
-**规则：先定义接口，后实现逻辑。** 任何涉及 action 名或字段变更的修改，必须按以下流程执行：
+- **字段名两端逐字一致**：请求 `params` 的 key 与 Py 端 `req.get()` 的 key、响应 `data` 的 key 与 P4 端 `json_str/json_int/json_double()` 的 key 必须完全相同，大小写敏感。
+- **只增不删**：新增字段按可选处理（Py 端 `.get(key, default)`，P4 端 `cJSON_GetObjectItem` 判空），已有字段不做重命名，废弃字段保留一个版本周期的兼容读取。
+- **类型统一**：数值用 `cJSON_AddNumber` / `int`·`float`，字符串统一 UTF-8。
+- **顺序固定**：先定 action 与字段，再写两端实现，避免一端先落地造成临时不兼容。
 
-1. **接口定义先行**：在本文件 Action 清单中新增/修改条目，明确字段名、类型、必填/可选
-2. **双端同时提交**：P4 端 `mqtt_req_task` 中的参数构建 与 Py 端 `handle_request` 中的参数解析，**必须在同一 PR 中变更**
-3. **向后兼容**：新增可选字段时，Py 端用 `.get(key, default)` 取值，P4 端用 `cJSON_GetObjectItem` 判空后取值；**禁止删除或重命名已有字段**，若必须废弃，需保留至少一个版本周期的兼容读取
-4. **类型一致**：数值类型两端统一（P4 用 `cJSON_AddNumber`，Py 用 `int`/`float`）；字符串类型统一用 UTF-8 编码
-
-**违反检测**：若 P4 发送了 Py 未识别的 action，Py 返回 `{"success": false, "error": "unknown action: ..."}`，P4 端 `mqtt_process_response` 中无匹配回调将打印 `No callback for req_id`。出现此类日志即为接口未同步。
+两端不一致时的表现：P4 发了 Py 未定义的 action，Py 返回 `{"success": false, "error": "unknown action: ..."}`；或 P4 端日志出现 `No callback for req_id`（回调已取消或 req_id 未匹配）。
 
 ---
 
@@ -145,14 +143,11 @@ P4: mqtt_process_response → 按 resp.req_id 查找 s_pending[] → 调用对�
 
 **注意**：若服装同时有入库和售货记录，删除其中一种记录不会删除 `clothing` 基本信息，另一种记录仍然安全。
 
-### 2.5 表项变更同步检查清单
+### 2.5 下拉选项与种子数据
 
-修改 P4 端下拉选项（如款式、牌子、颜色）时：
+款式、牌子、颜色等下拉项在四处有关联：Py 端 `db.py` 的 `_seed_data` 种子数据、`db.py` 的 INSERT/SELECT 字段、P4 端 `custom.c` 中 `xxx_resp_cb` 解析的字段名、`chinese.txt` 字体表中的中文字形。
 
-- [ ] 确认 `db.py` `_seed_data` 中的种子数据是否需要同步更新
-- [ ] 确认新增字段在 `db.py` 对应的 INSERT/SELECT 语句中是否存在
-- [ ] 确认 P4 端 `custom.c` 中 `xxx_resp_cb` 响应解析的 `json_str/json_int/json_double` 字段名与 Py 端返回的 JSON key 一致
-- [ ] 确认 `chinese.txt` 字体文件是否包含新增的中文字符
+任一处漏改的典型表现：选项为空、字段被解析成 0 或空串、中文显示成方块。
 
 ---
 
@@ -233,7 +228,7 @@ cp main/config/app_config_private.h.example main/config/app_config_private.h
 2. 修改 `mqtt_server.py` 的 action 签名后，需确认 P4 端 `custom.c` 的 `mqtt_req_task` 中参数字段是否匹配
 3. 新增 Python 依赖后，更新本文档依赖清单并通知团队
 
-### 3.3 字体替换脚本（GUI Guider 再生后执行）
+### 3.4 字体替换脚本（GUI Guider 再生后执行）
 
 GUI Guider 生成的 `guider_fonts/lv_font_ZiTiQuanWeiJunHeiW22_25.c` 仅包含界面静态文本的字符，缺少动态内容的汉字。需将 `guider_customer_fonts` 中的完整字体替换过去：
 
@@ -264,45 +259,19 @@ print('Font replacement done.')
 
 ### 4.1 修改影响分级
 
-| 级别 | 范围 | 示例 | 必须动作 |
+| 级别 | 范围 | 示例 | 需要改的地方 |
 |------|------|------|----------|
 | **P4 单端** | 仅影响嵌入式端 UI/交互 | 调整对话框布局、修改键盘避让偏移量、变更下拉选项顺序 | 仅修改 `ui/custom/custom.c`，无需改 Py |
 | **Py 单端** | 仅影响后端数据处理 | 优化 SQL 查询性能、调整分页 page_size 默认值 | 仅修改 `db.py`，确保响应格式不变 |
-| **双端联动** | 涉及通信协议变更 | 新增 action、修改请求/响应字段名或类型 | 必须双端同一 PR 同步修改 |
+| **双端联动** | 涉及通信协议变更 | 新增 action、修改请求/响应字段名或类型 | 双端同步修改 |
 
-### 4.2 双端联动判定标准
+### 4.2 单端改动与双端联动
 
-**以下任一条件成立即为双端联动修改：**
+涉及通信协议即为双端联动：新增或删除 action；修改请求 `params`、响应 `data` 的字段名或类型；P4 端开始解析之前未用到的响应字段。
 
-- [x] 新增或删除 `mqtt_send_request` 调用中的 action 字符串
-- [x] 修改请求 JSON 中 `params` 对象的字段名或字段类型
-- [x] 修改响应 JSON 中 `data` 对象的结构（字段增删、类型变化）
-- [x] P4 端新增 `xxx_resp_cb` 中解析了之前未使用的响应字段
-- [x] Py 端 `handle_request` 中新增了之前不存在的必填参数
+不涉及协议的单端改动：P4 端 UI 布局与交互回调，Py 端 SQL 实现与错误处理（返回格式不变）。
 
-**以下为单端修改：**
-
-- [ ] 修改 P4 端 UI 布局（控件位置、颜色、字号）
-- [ ] 修改 P4 端事件回调中的 UI 交互逻辑（不涉及 MQTT 通信）
-- [ ] 修改 Py 端数据库查询实现（SQL 优化，返回格式不变）
-- [ ] 修改 Py 端错误处理/日志格式
-
-### 4.3 变更检查清单（每次修改必过）
-
-```
-□ 本次修改涉及哪些文件？（P4 / Py / 双端）
-□ 若涉及 MQTT 通信，action 名是否为已有？若是新增，是否已更新 Action 清单？
-□ 请求参数字段名是否与对端解析代码一致？
-    P4: mqtt_req_task() 中的 cJSON_AddXxxToObject() 的 key
-    Py: handle_request() 中的 req.get() 的 key
-□ 响应数据字段名是否与对端解析代码一致？
-    P4: xxx_resp_cb() 中的 json_str/json_int/json_double() 的 key
-    Py: handle_request() 返回的 dict key
-□ 新增中文字符是否已更新 chinese.txt 并重新生成字体？
-□ 是否需要更新本文档的 Action 清单？
-```
-
-### 4.4 常见故障与未同步症状
+### 4.3 常见故障与未同步症状
 
 | 现象 | 可能原因 | 排查位置 |
 |------|----------|----------|
