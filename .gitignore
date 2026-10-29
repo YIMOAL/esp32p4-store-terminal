@@ -1,0 +1,16 @@
+# ESP-IDF 构建产物（由 idf.py 生成，不入库）
+/build/
+/build_esp*/
+/sdkconfig
+/sdkconfig.old
+/managed_components/
+/deps/
+/.cache/
+
+# IDE / 编辑器
+/.vscode/
+*.code-workspace
+*.swp
+
+# 敏感配置：本地从 .example 复制后填入，绝不入库
+main/config/app_config_private.h

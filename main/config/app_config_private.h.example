@@ -1,0 +1,27 @@
+#ifndef __APP_CONFIG_PRIVATE_H
+#define __APP_CONFIG_PRIVATE_H
+
+/**
+ * @file app_config_private.h.example
+ * @brief 敏感配置模板 — 复制为 app_config_private.h 后填入实际值
+ * 
+ * 使用方法：
+ *   cp app_config_private.h.example app_config_private.h
+ *   然后编辑 app_config_private.h 填入你的实际配置
+ */
+
+/* ======================== Wi-Fi 配置 ======================== */
+#define WIFI_SSID      "YOUR_WIFI_SSID"
+#define WIFI_PASSWORD  "YOUR_WIFI_PASSWORD"
+
+/* ======================== MQTT 配置 ======================== */
+#define MQTT_BROKER          "mqtt://broker.hivemq.com:1883"
+#define MQTT_PORT            1883
+#define MQTT_CLIENT_ID       "esp32p4_clothing_client"
+#define MQTT_USER            "YOUR_MQTT_USERNAME"
+#define MQTT_PASS            "YOUR_MQTT_PASSWORD"
+
+#define MQTT_TOPIC_REQ       "clothing/req"
+#define MQTT_TOPIC_RESP      "clothing/resp"
+
+#endif /* __APP_CONFIG_PRIVATE_H */

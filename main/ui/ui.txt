@@ -1,0 +1,86 @@
+screen (主屏幕)
+├── title_bar (标题栏)
+│   └── label_title ("服装库存管理") 右上
+│   └── label_title ("AI赋能设计，设计点亮AI!")  左上
+│   └── label_title ("WIFI OK  MQTT OK")  左上
+│   └── label_btn ("搜索栏")//进入搜索页面   上边居中
+│   └── label_btn ("时间")//显示当前 年月日 时间  左边居中
+右侧网格依次排列   进货 售货 查看 设置
+│   └── label_btn ("设置")//配置WIFI
+│   └── label_btn ("查看")//进入查看页面
+│   └── label_btn ("进货")//进入进货页面
+│   └── label_btn ("售货")//进入售货页面
+
+│
+├── search_bar (搜索栏)
+│   ├── input_search (搜索输入框)
+│   └── btn_search (搜索按钮)
+│
+├── category_bar (分类查看栏)
+│   ├── btn_category[0] ("上衣")
+│   │   ├──list_container (商品列表容器)  //一次只显示8条
+│   │   ├── list_item[0] (商品项1)
+│   │   │   ├── label_code ("T16301-1")
+│   │   │   ├── label_name ("翻领T恤")
+│   │   │   ├── label_brand ("金盾")
+│   │   │   ├── label_color ("苦根色")
+│   │   │   ├── label_stock ("库存:6件")
+│   │   │   ├── label_price ("¥0.00")
+│   │   │   │   │   ├── 点击商品行btn_edit (编辑)
+│   │   │   │   │   ├── 修改商品行btn_edit (修改按钮)
+│   │   │   │   │   ├── 删除商品行btn_edit (删除按钮)
+│   │   ├── pagination_bar (分页栏)
+│   │   │   ├── label_page_info ("页码: 1/n")
+│   │   │   ├── btn_prev ("上一页")
+│   │   │   ├── btn_next ("下一页")
+│   │   ├── list_item[1] (商品项2)
+│   │   ├── ... (结构同上)
+│   │   └── ... (更多商品项)
+│   ├── btn_category[1] ("裤子")
+│   ├── btn_category[2] ("外套")
+│   ├── btn_category[3] ("配饰")
+│
+├── btn_add (新增商品按钮)
+│
+├── modal_add (新增弹窗) [隐藏]
+│   ├── container_form
+│   │   ├── input_code (款号输入)
+│   │   ├── input_name (名称输入)
+│   │   ├── dropdown_category (分类下拉)
+│   │   ├── input_brand (品牌输入)
+│   │   ├── input_color (颜色输入)
+│   │   ├── input_price (价格输入)
+│   │   └── input_material (材质输入)
+│   ├── btn_ok (确定)
+│   └── btn_cancel (取消)
+│
+├── modal_edit (编辑弹窗) [隐藏]
+│   ├── container_form
+│   │   ├── input_code (款号输入,只读)
+│   │   ├── input_name (名称输入)
+│   │   └── ... (同上结构)
+│   ├── btn_ok (确定)
+│   └── btn_cancel (取消)
+│
+└── modal_delete (删除确认弹窗) [隐藏]
+    ├── label_confirm ("确定删除该商品?")
+    ├── btn_confirm (确认删除)
+    └── btn_cancel (取消)
+
+
+	ESP32 (LVGL UI)                    Python (MQTT Server)
+══════════════                     ════════════════════
+用户点击按钮 → custom.c
+  ↓ mqtt_send_request()
+  ↓ 构建 JSON {"action":"xxx", "req_id":N, ...}
+  ↓ 发布到 clothing/req  ──────►  收到请求
+                                     ↓ handle_request()
+                                     ↓ 调用 db.py 函数
+                                     ↓ 发布到 clothing/resp
+  收到响应  ◄──────────────────────  
+  ↓ mqtt_process_response()
+  ↓ 解析 JSON，匹配 req_id
+  ↓ 调用注册的回调函数
+  ↓ lvgl_lock()
+  ↓ 更新 LVGL 控件
+  ↓ lvgl_unlock()
